@@ -1,0 +1,149 @@
+
+from . import probe, probe_eddy_current, manual_probe
+import math
+import configparser
+
+class ZoffsetCalibration:
+    def __init__(self, config):
+        self.printer = config.get_printer()
+        self.config = config
+        print(f'ZoffsetCalibration init name:{config.get_name()}')
+        #self.toolhead = config.get_printer().lookup_object('toolhead')
+        x_pos_center, y_pos_center = config.getfloatlist("center_xy_position", count=2)
+        x_pos_endstop, y_pos_endstop = config.getfloatlist("endstop_xy_position", count=2)
+        self.center_x_pos, self.center_y_pos = x_pos_center, y_pos_center
+        self.endstop_x_pos, self.endstop_y_pos = x_pos_endstop, y_pos_endstop
+        self.z_hop = config.getfloat("z_hop", default=10.0)
+        self.z_hop_speed = config.getfloat('z_hop_speed', 5., above=0.)
+        zconfig = config.getsection('stepper_z')
+        self.endstop_pin = zconfig.get('endstop_pin')
+        self.speed = config.getfloat('speed', 180.0, above=0.)
+        self.offsetadjust = float(self.read_varibles_cfg_value("offsetadjust"))
+        self.internal_endstop_offset = config.getfloat('internal_endstop_offset', default=0.)
+        self.gcode = self.printer.lookup_object('gcode')
+        self.gcode_move = self.printer.lookup_object('gcode_move')
+        self.gcode.register_command("Z_OFFSET_CALIBRATION", self.cmd_Z_OFFSET_CALIBRATION, desc=self.cmd_Z_OFFSET_CALIBRATION_help)
+        
+        self.last_toolhead_pos = self.last_kinematics_pos = None
+        
+        self._name = config.get_name()
+        print(f'config name : {self._name}')
+        
+        pprobe = self.printer.lookup_object("probe")
+        self.x_offset, self.y_offset, self.z_offset = pprobe.get_offsets()
+        if self.x_offset == 0 and self.y_offset == 0:
+            raise config.error("ZoffsetCalibration: Check the x and y offset from [probe] - it seems both are 0 and the Probe can't be at the same position as the nozzle :-)")
+        
+        probe_pressure = config.getsection('probe_pressure')
+        self.x_offsetp = probe_pressure.getfloat('x_offset', note_valid=False)
+        self.y_offsetp = probe_pressure.getfloat('y_offset', note_valid=False)
+        
+    def read_varibles_cfg_value(self, option):
+        _config = configparser.ConfigParser()
+        _config.read('/home/sovol/printer_data/config/saved_variables.cfg')
+        _value = _config.get('Variables', option)
+        return _value
+
+    # custom round operation based mathematically instead of python default cutting off
+    def rounding(self,n, decimals=0):
+        expoN = n * 10 ** decimals
+        if abs(expoN) - abs(math.floor(expoN)) < 0.5:
+            return math.floor(expoN) / 10 ** decimals
+        return math.ceil(expoN) / 10 ** decimals
+    
+    def _call_macro(self, macro):
+        self.gcode.run_script_from_command(macro)
+    
+    def get_kinematics_pos(self):
+        toolhead_pos = self.toolhead.get_position()
+        if toolhead_pos == self.last_toolhead_pos:
+            return self.last_kinematics_pos
+        self.toolhead.flush_step_generation()
+        kin = self.toolhead.get_kinematics()
+        kin_spos = {s.get_name(): s.get_commanded_position()
+                    for s in kin.get_steppers()}
+        kin_pos = kin.calc_position(kin_spos)
+        self.last_toolhead_pos = toolhead_pos
+        self.last_kinematics_pos = kin_pos
+        return kin_pos
+
+    def cmd_Z_OFFSET_CALIBRATION(self, gcmd):
+        # check if all axes are homed
+        phoming = self.printer.lookup_object('homing')
+        #phoming = self.printer.lookup_object('homing_override')
+        pmanual_probe = self.printer.lookup_object('manual_probe')
+        self.toolhead = self.printer.lookup_object('toolhead')
+        curtime = self.printer.get_reactor().monotonic()
+        kin_status = self.toolhead.get_kinematics().get_status(curtime)
+        
+        gcmd_G28 = self.gcode.create_gcode_command("G28", "G28", {'X': 0, 'Y': 0})
+        phoming.cmd_G28(gcmd_G28)
+        
+        pos = self.toolhead.get_position()
+        pos[2] = 150
+        self.toolhead.set_position(pos, homing_axes=(0, 1, 2))
+
+        gcmd_offset = self.gcode.create_gcode_command("SET_GCODE_OFFSET",
+                                                      "SET_GCODE_OFFSET",
+                                                      {'Z': 0})
+        self.gcode_move.cmd_SET_GCODE_OFFSET(gcmd_offset)
+
+        gcmd.respond_info("ZoffsetCalibration: Pressure move ...")
+        self.toolhead.manual_move([self.endstop_x_pos, self.endstop_y_pos], self.speed)
+
+        gcmd.respond_info("ZoffsetCalibration: Pressure lookup object ...")
+        self._call_macro("GET_PRESSURE_TARE") ##！！
+        zendstop_p = self.printer.lookup_object('probe_pressure').run_probe(gcmd)
+        pos = self.toolhead.get_position() ##+++++++
+        pos[2] = 0
+        self.toolhead.set_position(pos, homing_axes=(0, 1, 2))
+        # Perform Z Hop
+        if self.z_hop:
+            self.toolhead.manual_move([None, None, 5], 5)
+            
+        gcmd.respond_info("ZoffsetCalibration: Pressure lookup object ...")
+        zendstop_p1 = self.printer.lookup_object('probe_pressure').run_probe(gcmd)
+        
+        # Perform Z Hop
+        if self.internal_endstop_offset != 0.:
+            self.toolhead.manual_move([None, None, (self.internal_endstop_offset * 2)], self.z_hop_speed)
+            
+        offset = 0.0
+        self.set_offset(offset)
+        
+        ##获取eddy对象
+        objs_list = self.printer.lookup_objects('probe_eddy_current')
+        for name, pprobe_eddy in objs_list:
+            print(f"Module Object Name: {name}, Object: {objs_list}")
+        name, pprobe_eddy = objs_list[0]
+        
+        ##校准LDC1612驱动电流
+        self.toolhead.manual_move([None, None, 20.], self.z_hop_speed)
+        gcmd_LDC = self.gcode.create_gcode_command("cmd_LDC_CALIBRATE", "cmd_LDC_CALIBRATE", {})
+        pprobe_eddy.sensor_helper.dccal.cmd_LDC_CALIBRATE(gcmd_LDC)
+            
+        ##eddy part
+        gcmd_EDDY = self.gcode.create_gcode_command("", "", {})
+        gcmd_ACCEPT = self.gcode.create_gcode_command("cmd_ACCEPT", "cmd_ACCEPT", {'Z': 0.})
+        
+        manual_probe_helper = pprobe_eddy.calibration.cmd_EDDY_CALIBRATE(gcmd_EDDY)
+        self.toolhead.manual_move([None, None, self.internal_endstop_offset / 2], 5)
+        manual_probe_helper.cmd_ACCEPT(gcmd_ACCEPT)
+        
+    def set_offset(self, offset):
+        # reset pssible existing offset to zero
+        gcmd_offset = self.gcode.create_gcode_command("SET_GCODE_OFFSET",
+                                                      "SET_GCODE_OFFSET",
+                                                      {'Z': 0})
+        self.gcode_move.cmd_SET_GCODE_OFFSET(gcmd_offset)
+        # set new offset
+        gcmd_offset = self.gcode.create_gcode_command("SET_GCODE_OFFSET",
+                                                      "SET_GCODE_OFFSET",
+                                                      {'Z': offset})
+        self.gcode_move.cmd_SET_GCODE_OFFSET(gcmd_offset)
+
+    cmd_Z_OFFSET_CALIBRATION_help = "Test endstop and bed surface to calcualte g-code offset for Z"
+    
+
+def load_config(config):
+    return ZoffsetCalibration(config)
