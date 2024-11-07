@@ -82,7 +82,7 @@ class LDC1612:
         # Setup mcu sensor_ldc1612 bulk query code
         self.i2c = bus.MCU_I2C_from_config(config,
                                            default_addr=LDC1612_ADDR,
-                                           default_speed=400000)
+                                           default_speed=100000)
         self.mcu = mcu = self.i2c.get_mcu()
         self.oid = oid = mcu.create_oid()
         self.query_ldc1612_cmd = None

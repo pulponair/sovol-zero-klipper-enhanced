@@ -68,13 +68,38 @@ class ZoffsetCalibration:
         return kin_pos
 
     def cmd_Z_OFFSET_CALIBRATION(self, gcmd):
-        # check if all axes are homed
-        phoming = self.printer.lookup_object('homing')
-        #phoming = self.printer.lookup_object('homing_override')
-        pmanual_probe = self.printer.lookup_object('manual_probe')
+        ##鑾峰彇eddy瀵硅薄
+        objs_list = self.printer.lookup_objects('probe_eddy_current')
+        for name, pprobe_eddy in objs_list:
+            print(f"Module Object Name: {name}, Object: {objs_list}")
+        name, pprobe_eddy = objs_list[0]
+        
+        if pprobe_eddy.calibration.is_calibrated() == True and gcmd.get("METHOD", "default") == 'default':
+            gcmd.respond_info("ZoffsetCalibration: Eddy data already exists")
+            return
+        
+        bed_temp = gcmd.get_float('BED_TEMP', 65.)
+        extruder_temp = gcmd.get_float('EXTRUDER_TEMP', 130.)
+
+        pheater_bed = self.printer.lookup_object('heater_bed')
+        pheater_extruder = self.printer.lookup_object('extruder')
+
+        gcmd_set_bed_temp = self.gcode.create_gcode_command("M140", "M140", {'S': bed_temp})
+        gcmd_set_extruder_temp = self.gcode.create_gcode_command("M104", "M104", {'S': extruder_temp})
+        pheater_bed.cmd_M140(gcmd_set_bed_temp)
+        pheater_extruder.cmd_M104(gcmd_set_extruder_temp)
+
+        gcmd_wait_bed_temp = self.gcode.create_gcode_command("M109", "M190", {'S': bed_temp})
+        gcmd_wait_extruder_temp = self.gcode.create_gcode_command("M109", "M109", {'S': extruder_temp})
+        pheater_bed.cmd_M190(gcmd_wait_bed_temp)
+        pheater_extruder.cmd_M109(gcmd_wait_extruder_temp)
+
+        if 'homing_override' in self.printer.objects:
+            phoming = self.printer.lookup_object('homing_override')
+        else:
+            phoming = self.printer.lookup_object('homing')
+
         self.toolhead = self.printer.lookup_object('toolhead')
-        curtime = self.printer.get_reactor().monotonic()
-        kin_status = self.toolhead.get_kinematics().get_status(curtime)
         
         gcmd_G28 = self.gcode.create_gcode_command("G28", "G28", {'X': 0, 'Y': 0})
         phoming.cmd_G28(gcmd_G28)
@@ -92,7 +117,7 @@ class ZoffsetCalibration:
         self.toolhead.manual_move([self.endstop_x_pos, self.endstop_y_pos], self.speed)
 
         gcmd.respond_info("ZoffsetCalibration: Pressure lookup object ...")
-        self._call_macro("GET_PRESSURE_TARE") ##！！
+        self._call_macro("GET_PRESSURE_TARE") ##锛侊紒
         zendstop_p = self.printer.lookup_object('probe_pressure').run_probe(gcmd)
         pos = self.toolhead.get_position() ##+++++++
         pos[2] = 0
@@ -111,13 +136,11 @@ class ZoffsetCalibration:
         offset = 0.0
         self.set_offset(offset)
         
-        ##获取eddy对象
-        objs_list = self.printer.lookup_objects('probe_eddy_current')
-        for name, pprobe_eddy in objs_list:
-            print(f"Module Object Name: {name}, Object: {objs_list}")
-        name, pprobe_eddy = objs_list[0]
+        if pprobe_eddy.calibration.is_calibrated() == True and gcmd.get("METHOD", "default") == 'default':
+            gcmd.respond_info("ZoffsetCalibration: Eddy data already exists")
+            return
         
-        ##校准LDC1612驱动电流
+        ##鏍″噯LDC1612椹卞姩鐢垫祦
         self.toolhead.manual_move([None, None, 20.], self.z_hop_speed)
         gcmd_LDC = self.gcode.create_gcode_command("cmd_LDC_CALIBRATE", "cmd_LDC_CALIBRATE", {})
         pprobe_eddy.sensor_helper.dccal.cmd_LDC_CALIBRATE(gcmd_LDC)

@@ -83,7 +83,7 @@ i2c_setup(uint32_t bus, uint32_t rate, uint8_t addr)
         // Set 100Khz frequency and enable
         uint32_t pclk = get_pclock_frequency((uint32_t)i2c);
         i2c->CR2 = pclk / 1000000;
-        i2c->CCR = pclk / 50000 / 2;
+        i2c->CCR = pclk / 100000 / 2;
         i2c->TRISE = (pclk / 1000000) + 1;
         i2c->CR1 = I2C_CR1_PE;
     }

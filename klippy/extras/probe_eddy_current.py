@@ -168,10 +168,21 @@ class EddyCalibration:
         # Calculate each sample position average and variance
         positions, std, total = self.calc_freqs(cal)
         last_freq = 0.
+        one_before_last_freq = 0.
+        flag_pos = 0.
         for pos, freq in reversed(sorted(positions.items())):
-            if freq <= last_freq:
+            if flag_pos != 0.:
+                positions[flag_pos] += float((freq - last_freq) / 2)
+                flag_pos = 0.
+                
+            if freq < last_freq:
                 raise self.printer.command_error(
                     "Failed calibration - frequency not increasing each step")
+            elif freq == last_freq:
+                flag_pos = pos
+
+            if last_freq > 0. and one_before_last_freq >= 0.:
+                one_before_last_freq = last_freq
             last_freq = freq
         gcode = self.printer.lookup_object("gcode")
         gcode.respond_info(
@@ -180,14 +191,17 @@ class EddyCalibration:
             "and restart the printer." % (std, total))
         # Save results
         cal_contents = []
+        cal_vals = []
         for i, (pos, freq) in enumerate(sorted(positions.items())):
             if not i % 3:
                 cal_contents.append('\n')
             cal_contents.append("%.6f:%.3f" % (pos - probe_calibrate_z, freq))
             cal_contents.append(',')
+            cal_vals.append([round(pos - probe_calibrate_z, 6), round(freq, 3)]) ##
         cal_contents.pop()
         configfile = self.printer.lookup_object('configfile')
         configfile.set(self.name, 'calibrate', ''.join(cal_contents))
+        self.load_calibration(cal_vals)
     cmd_EDDY_CALIBRATE_help = "Calibrate eddy current probe"
     def cmd_EDDY_CALIBRATE(self, gcmd):
         self.probe_speed = gcmd.get_float("PROBE_SPEED", 5., above=0.)
