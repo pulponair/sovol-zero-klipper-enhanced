@@ -87,7 +87,7 @@ class ZoffsetCalibration:
         pheater_extruder = self.printer.lookup_object('extruder')
 
         bed_temp = gcmd.get_float('BED_TEMP', 65.)
-        extruder_temp = gcmd.get_float('EXTRUDER_TEMP', 130.)
+        extruder_temp = gcmd.get_float('EXTRUDER_TEMP', 130.0)
 
         gcmd_set_bed_temp = self.gcode.create_gcode_command("M140", "M140", {'S': bed_temp})
         gcmd_set_extruder_temp = self.gcode.create_gcode_command("M104", "M104", {'S': extruder_temp})
