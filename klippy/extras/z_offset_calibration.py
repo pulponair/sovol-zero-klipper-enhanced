@@ -132,10 +132,11 @@ class ZoffsetCalibration:
         
         # Perform Z Hop
         if self.internal_endstop_offset != 0.:
-            self.toolhead.manual_move([None, None, (self.internal_endstop_offset * 2)], self.z_hop_speed)
+            self.toolhead.manual_move([None, None, -self.internal_endstop_offset], self.z_hop_speed)
             
-        offset = 0.0
-        self.set_offset(offset)
+        pos = self.toolhead.get_position()
+        pos[2] = 0
+        self.toolhead.set_position(pos, homing_axes=(0, 1, 2))
         
         if pprobe_eddy.calibration.is_calibrated() == True and gcmd.get("METHOD", "default") == 'default':
             gcmd.respond_info("ZoffsetCalibration: Eddy data already exists")
