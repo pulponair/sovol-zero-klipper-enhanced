@@ -21,37 +21,32 @@ void GPIO_ResetBits(uint32_t pin)
 	gpio_out_setup(pin, 0);
 }
 
+void DelayNops(uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        __NOP();
+    }
+}
+
 void SendOne(void){//T1H -> T1L
 	
 	GPIO_SetBits(GPIO_CS);//设置为高电平
 	//延时580ns~1μs
-	__NOP(); //13.89ns*48 ~
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
+	 DelayNops(267);
 	
 	GPIO_ResetBits(GPIO_CS);//设置为低电平
 	//延时220ns~380ns
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();//13.89ns*16
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
+	 DelayNops(96);
 }
 
 void SendZero(void){//T0H -> T0L
 	GPIO_SetBits(GPIO_CS);//设置为高电平
 	//延时220ns~380ns
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();//13.89ns*16
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
+	 DelayNops(96);
 	
 	//延时580ns~1μs
 	GPIO_ResetBits(GPIO_CS);//设置为低电平
-	__NOP();//13.89ns*48 
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
-	__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();	
+	 DelayNops(267);
 }
 
 void SendRGB(uint8_t red, uint8_t green, uint8_t blue) {

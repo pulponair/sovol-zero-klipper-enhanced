@@ -23,14 +23,23 @@ usbserial_get_serialid(void)
    return &cdc_chipid.desc;
 }
 
-//stm32f750     1234567890123456780ULL     canbus_uuid:946fab27ac7f
-//stm32f103     1234567890123456788ULL     canbus_uuid:466a08fc77da
+//stm32f750     0x8f     canbus_uuid:0d1445047cdd
+//stm32f103     0x80     canbus_uuid:61755fe321ac
 
 void
 chipid_init(void)
 {
-    uint64_t custumUID = 1234567890123456780ULL;
-    uint64_t *uid_base = &custumUID;
+    uint8_t custumUID[] = { 0x12, 0x34, 0x56, 0x78, 0x99, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x8f };
+    uint8_t *uid_base = custumUID;
+    if (CONFIG_MACH_STM32H750 == 1) 
+    {
+        custumUID[CHIP_UID_LEN -1] = 0x8f;
+    } 
+    else if (CONFIG_MACH_STM32F103 == 1)
+    {
+        custumUID[CHIP_UID_LEN -1] = 0x80;   //多个stm32f103可以修改这个值
+    }
+    
     if (CONFIG_USB_SERIAL_NUMBER_CHIPID)
         usb_fill_serial(&cdc_chipid.desc, ARRAY_SIZE(cdc_chipid.data)
                         , (void*)uid_base);
