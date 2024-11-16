@@ -24,7 +24,7 @@ usbserial_get_serialid(void)
 }
 
 //stm32f750     0x8f     canbus_uuid:0d1445047cdd
-//stm32f103     0x80     canbus_uuid:61755fe321ac
+//stm32f103     0x80     canbus_uuid:61755fe321ac 
 
 void
 chipid_init(void)
