@@ -77,9 +77,9 @@ class Fan:
     def reCheck(self, eventtime):
         tachometer_status = self.tachometer.get_status(eventtime)
         rpm = tachometer_status['rpm']
-        if self.last_fan_value == 1.0 and rpm == 0.0:
-            logging.info("++Exception in Fan，invoke_shutdown\n")
-            self.printer.invoke_shutdown("Exception in Fan")
+        if self.last_fan_value == 1.0 and rpm == 0.0 and (eventtime - self.last_fan_time) > 4.0:
+            if self.last_fan_value == 1.0 and rpm == 0.0:
+                self.printer.invoke_shutdown("Exception in Hotend_fan")
     def get_status(self, eventtime):
         tachometer_status = self.tachometer.get_status(eventtime)
         rpm = tachometer_status['rpm']

@@ -24,7 +24,7 @@ void GPIO_ResetBits(uint32_t pin)
 void DelayNops(uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++) {
-        __NOP();
+        __NOP();//400MHz-2.5ns
     }
 }
 
@@ -32,21 +32,21 @@ void SendOne(void){//T1H -> T1L
 	
 	GPIO_SetBits(GPIO_CS);//设置为高电平
 	//延时580ns~1μs
-	 DelayNops(267);
+	 DelayNops(350);
 	
 	GPIO_ResetBits(GPIO_CS);//设置为低电平
 	//延时220ns~380ns
-	 DelayNops(96);
+	 DelayNops(120);
 }
 
 void SendZero(void){//T0H -> T0L
 	GPIO_SetBits(GPIO_CS);//设置为高电平
 	//延时220ns~380ns
-	 DelayNops(96);
+	 DelayNops(120);
 	
 	//延时580ns~1μs
 	GPIO_ResetBits(GPIO_CS);//设置为低电平
-	 DelayNops(267);
+	 DelayNops(350);
 }
 
 void SendRGB(uint8_t red, uint8_t green, uint8_t blue) {
@@ -82,10 +82,10 @@ void SendRGB(uint8_t red, uint8_t green, uint8_t blue) {
 
 void RGB_Reset(void){							//复位信号
 	GPIO_ResetBits(GPIO_CS);	//设置为低电平
-	udelay(1000);								//延时1ms 满足50us的最小持续时间
+	DelayNops(100);;								//延时1ms 满足50us的最小持续时间
 	
 	GPIO_SetBits(GPIO_CS);		//设置为高电平
-	udelay(1000);								//延时1ms 满足280us的最小持续时间
+	DelayNops(200);								//延时1ms 满足280us的最小持续时间
 }
 
 void lcd_init(void) {
