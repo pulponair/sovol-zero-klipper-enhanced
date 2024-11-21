@@ -7,16 +7,14 @@ class ZoffsetCalibration:
     def __init__(self, config):
         self.printer = config.get_printer()
         self.config = config
-        print(f'ZoffsetCalibration init name:{config.get_name()}')
-        #self.toolhead = config.get_printer().lookup_object('toolhead')
         x_pos_center, y_pos_center = config.getfloatlist("center_xy_position", count=2)
         x_pos_endstop, y_pos_endstop = config.getfloatlist("endstop_xy_position", count=2)
         self.center_x_pos, self.center_y_pos = x_pos_center, y_pos_center
         self.endstop_x_pos, self.endstop_y_pos = x_pos_endstop, y_pos_endstop
         self.z_hop = config.getfloat("z_hop", default=10.0)
         self.z_hop_speed = config.getfloat('z_hop_speed', 5., above=0.)
-        zconfig = config.getsection('stepper_z')
-        self.endstop_pin = zconfig.get('endstop_pin')
+        self.zconfig = config.getsection('stepper_z')
+        self.endstop_pin = self.zconfig.get('endstop_pin')
         self.speed = config.getfloat('speed', 180.0, above=0.)
         self.offsetadjust = float(self.read_varibles_cfg_value("offsetadjust"))
         self.internal_endstop_offset = config.getfloat('internal_endstop_offset', default=0.)
@@ -27,7 +25,6 @@ class ZoffsetCalibration:
         self.last_toolhead_pos = self.last_kinematics_pos = None
         
         self._name = config.get_name()
-        print(f'config name : {self._name}')
         
         pprobe = self.printer.lookup_object("probe")
         self.x_offset, self.y_offset, self.z_offset = pprobe.get_offsets()
@@ -70,8 +67,6 @@ class ZoffsetCalibration:
     def cmd_Z_OFFSET_CALIBRATION(self, gcmd):
         ## get eddy object
         objs_list = self.printer.lookup_objects('probe_eddy_current')
-        for name, pprobe_eddy in objs_list:
-            print(f"Module Object Name: {name}, Object: {objs_list}")
         name, pprobe_eddy = objs_list[0]
         
         if pprobe_eddy.calibration.is_calibrated() == True and gcmd.get("METHOD", "default") == 'default':
@@ -85,9 +80,9 @@ class ZoffsetCalibration:
         self.toolhead = self.printer.lookup_object('toolhead')
         pheater_bed = self.printer.lookup_object('heater_bed')
         pheater_extruder = self.printer.lookup_object('extruder')
-
-        bed_temp = gcmd.get_float('BED_TEMP', 65.0)
-        extruder_temp = gcmd.get_float('EXTRUDER_TEMP', 130.0)
+        z_max_position = self.zconfig.getfloat('position_max')
+        bed_temp = gcmd.get_float('BED_TEMP', default=65.0)
+        extruder_temp = gcmd.get_float('EXTRUDER_TEMP', default=130.0)
 
         gcmd_set_bed_temp = self.gcode.create_gcode_command("M140", "M140", {'S': bed_temp})
         gcmd_set_extruder_temp = self.gcode.create_gcode_command("M104", "M104", {'S': extruder_temp})
@@ -105,7 +100,7 @@ class ZoffsetCalibration:
             phoming.cmd_G28(gcmd_G28)
         
         pos = self.toolhead.get_position()
-        pos[2] = 150
+        pos[2] = z_max_position
         self.toolhead.set_position(pos, homing_axes=(0, 1, 2))
 
         gcmd_offset = self.gcode.create_gcode_command("SET_GCODE_OFFSET",
@@ -116,23 +111,35 @@ class ZoffsetCalibration:
         gcmd.respond_info("ZoffsetCalibration: Pressure move ...")
         self.toolhead.manual_move([self.endstop_x_pos, self.endstop_y_pos], self.speed)
 
-        gcmd.respond_info("ZoffsetCalibration: Pressure lookup object ...")
+        gcmd.respond_info("ZoffsetCalibration: Pressure probing ...")
         self._call_macro("GET_PRESSURE_TARE")
         zendstop_p = self.printer.lookup_object('probe_pressure').run_probe(gcmd)
-        pos = self.toolhead.get_position()
-        pos[2] = 0
-        self.toolhead.set_position(pos, homing_axes=(0, 1, 2))
         
-        # Perform Z Hop
-        if self.z_hop:
-            self.toolhead.manual_move([None, None, 5], 5)
-            
-        gcmd.respond_info("ZoffsetCalibration: Pressure lookup object ...")
-        zendstop_p1 = self.printer.lookup_object('probe_pressure').run_probe(gcmd)
+        reprobe_cnt = 1
+        while True:
+            if(reprobe_cnt >= 6):
+                raise gcmd.error('ZoffsetCalibration: Pressure probe more than five times.')
+            # Perform Z Hop
+            if self.z_hop:
+                pos = self.toolhead.get_position()
+                pos[2] += 5
+                if pos[2] > z_max_position:
+                    pos[2] = z_max_position
+                self.toolhead.manual_move([None, None, pos[2]], 5)
+            gcmd.respond_info("ZoffsetCalibration: Pressure verifying the difference between before and after %d/5." % (reprobe_cnt))
+            self._call_macro("GET_PRESSURE_TARE")
+            zendstop_p1 = self.printer.lookup_object('probe_pressure').run_probe(gcmd)
+            diff_z = abs(zendstop_p1[2] - zendstop_p[2])
+            zendstop_p = zendstop_p1
+            if diff_z <= 0.03:
+                gcmd.respond_info("ZoffsetCalibration: Pressure check success.")
+                break
+            reprobe_cnt += 1
         
         # Perform Z Hop
         if self.internal_endstop_offset != 0.:
-            self.toolhead.manual_move([None, None, -self.internal_endstop_offset], self.z_hop_speed)
+            pos = self.toolhead.get_position()
+            self.toolhead.manual_move([None, None, pos[2] - self.internal_endstop_offset], self.z_hop_speed)
             
         pos = self.toolhead.get_position()
         pos[2] = 0
