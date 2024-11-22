@@ -910,7 +910,7 @@ class MCU:
             or (self._is_shutdown and not force)):
             return
         code = self._printer.shutCode
-        # self._serial.send(f"debug_shut data={code}")
+        self._serial.send(f"debug_shut data={code}")
         self._emergency_stop_cmd.send()
     def _restart_arduino(self):
         logging.info("Attempting MCU '%s' reset", self._name)
