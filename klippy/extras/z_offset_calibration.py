@@ -21,10 +21,7 @@ class ZoffsetCalibration:
         self.gcode = self.printer.lookup_object('gcode')
         self.gcode_move = self.printer.lookup_object('gcode_move')
         self.gcode.register_command("Z_OFFSET_CALIBRATION", self.cmd_Z_OFFSET_CALIBRATION, desc=self.cmd_Z_OFFSET_CALIBRATION_help)
-        
         self.last_toolhead_pos = self.last_kinematics_pos = None
-        
-        self._name = config.get_name()
         
         pprobe = self.printer.lookup_object("probe")
         self.x_offset, self.y_offset, self.z_offset = pprobe.get_offsets()
@@ -34,35 +31,9 @@ class ZoffsetCalibration:
         probe_pressure = config.getsection('probe_pressure')
         self.x_offsetp = probe_pressure.getfloat('x_offset', note_valid=False)
         self.y_offsetp = probe_pressure.getfloat('y_offset', note_valid=False)
-        
-    def read_varibles_cfg_value(self, option):
-        _config = configparser.ConfigParser()
-        _config.read('/home/sovol/printer_data/config/saved_variables.cfg')
-        _value = _config.get('Variables', option)
-        return _value
-
-    # custom round operation based mathematically instead of python default cutting off
-    def rounding(self,n, decimals=0):
-        expoN = n * 10 ** decimals
-        if abs(expoN) - abs(math.floor(expoN)) < 0.5:
-            return math.floor(expoN) / 10 ** decimals
-        return math.ceil(expoN) / 10 ** decimals
     
     def _call_macro(self, macro):
         self.gcode.run_script_from_command(macro)
-    
-    def get_kinematics_pos(self):
-        toolhead_pos = self.toolhead.get_position()
-        if toolhead_pos == self.last_toolhead_pos:
-            return self.last_kinematics_pos
-        self.toolhead.flush_step_generation()
-        kin = self.toolhead.get_kinematics()
-        kin_spos = {s.get_name(): s.get_commanded_position()
-                    for s in kin.get_steppers()}
-        kin_pos = kin.calc_position(kin_spos)
-        self.last_toolhead_pos = toolhead_pos
-        self.last_kinematics_pos = kin_pos
-        return kin_pos
 
     def cmd_Z_OFFSET_CALIBRATION(self, gcmd):
         ## get eddy object
@@ -139,7 +110,7 @@ class ZoffsetCalibration:
         # Perform Z Hop
         if self.internal_endstop_offset != 0.:
             pos = self.toolhead.get_position()
-            self.toolhead.manual_move([None, None, pos[2] - self.internal_endstop_offset], self.z_hop_speed)
+            self.toolhead.manual_move([None, None, pos[2] - (2 * self.internal_endstop_offset)], self.z_hop_speed)
             
         pos = self.toolhead.get_position()
         pos[2] = 0
@@ -162,7 +133,7 @@ class ZoffsetCalibration:
         gcmd_ACCEPT = self.gcode.create_gcode_command("cmd_ACCEPT", "cmd_ACCEPT", {'Z': 0.})
         
         manual_probe_helper = pprobe_eddy.calibration.cmd_EDDY_CALIBRATE(gcmd_EDDY)
-        self.toolhead.manual_move([None, None, self.internal_endstop_offset / 2], 5)
+        self.toolhead.manual_move([None, None, self.internal_endstop_offset], 5)
         manual_probe_helper.cmd_ACCEPT(gcmd_ACCEPT)
         
     def set_offset(self, offset):
@@ -179,6 +150,5 @@ class ZoffsetCalibration:
 
     cmd_Z_OFFSET_CALIBRATION_help = "Test endstop and bed surface to calcualte g-code offset for Z"
     
-
 def load_config(config):
     return ZoffsetCalibration(config)
