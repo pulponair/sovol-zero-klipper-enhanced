@@ -79,7 +79,8 @@ void command_i2c_write(uint32_t *args)
     uint8_t data_len = args[1];
     uint8_t *data = command_decode_ptr(args[2]);
     int ret = i2c_dev_write(i2c, data_len, data);
-    i2c_shutdown_on_err(ret);
+    if (!CONFIG_MACH_STM32F1)
+        i2c_shutdown_on_err(ret);
 }
 DECL_COMMAND(command_i2c_write, "i2c_write oid=%c data=%*s");
 
@@ -102,7 +103,8 @@ void command_i2c_read(uint32_t *args)
     uint8_t data_len = args[3];
     uint8_t data[data_len];
     int ret = i2c_dev_read(i2c, reg_len, reg, data_len, data);
-    i2c_shutdown_on_err(ret);
+    if (!CONFIG_MACH_STM32F1)
+        i2c_shutdown_on_err(ret);
     sendf("i2c_read_response oid=%c response=%*s", oid, data_len, data);
 }
 DECL_COMMAND(command_i2c_read, "i2c_read oid=%c reg=%*s read_len=%u");
