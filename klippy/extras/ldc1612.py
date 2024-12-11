@@ -101,6 +101,7 @@ class LDC1612:
         mcu.add_config_cmd("query_ldc1612 oid=%d rest_ticks=0"
                            % (oid,), on_restart=True)
         mcu.register_config_callback(self._build_config)
+        mcu.register_response(self._response_i2c_error, "ldc1612_i2c_report")
         # Bulk sample message reading
         chip_smooth = self.data_rate * BATCH_UPDATES * 2
         self.ffreader = bulk_sensor.FixedFreqReader(mcu, chip_smooth, ">I")
@@ -113,6 +114,7 @@ class LDC1612:
         hdr = ('time', 'frequency', 'z')
         self.batch_bulk.add_mux_endpoint("ldc1612/dump_ldc1612", "sensor",
                                          self.name, {'header': hdr})
+        self.i2c_err_flag = 0
     def _build_config(self):
         cmdqueue = self.i2c.get_command_queue()
         self.query_ldc1612_cmd = self.mcu.lookup_command(
@@ -165,14 +167,21 @@ class LDC1612:
     def _start_measurements(self):
         # In case of miswiring, testing LDC1612 device ID prevents treating
         # noise or wrong signal as a correctly initialized device
+        retry_cnt = 0
         manuf_id = self.read_reg(REG_MANUFACTURER_ID)
         dev_id = self.read_reg(REG_DEVICE_ID)
-        if manuf_id != LDC1612_MANUF_ID or dev_id != LDC1612_DEV_ID:
-            raise self.printer.command_error(
-                "Invalid ldc1612 id (got %x,%x vs %x,%x).\n"
-                "This is generally indicative of connection problems\n"
-                "(e.g. faulty wiring) or a faulty ldc1612 chip."
-                % (manuf_id, dev_id, LDC1612_MANUF_ID, LDC1612_DEV_ID))
+        # Loop test to prevent external interference when read only once, read the wrong data
+        while (manuf_id != LDC1612_MANUF_ID or dev_id != LDC1612_DEV_ID) and self.i2c_err_flag != 0:
+            if retry_cnt > 2:
+                self.i2c_err_flag = 0
+                raise self.printer.command_error(
+                    "Invalid ldc1612 id (got %x,%x vs %x,%x).\n"
+                    "This is generally indicative of connection problems\n"
+                    "(e.g. faulty wiring) or a faulty ldc1612 chip."
+                    % (manuf_id, dev_id, LDC1612_MANUF_ID, LDC1612_DEV_ID))
+            manuf_id = self.read_reg(REG_MANUFACTURER_ID)
+            dev_id = self.read_reg(REG_DEVICE_ID)
+            retry_cnt += 1 
         # Setup chip in requested query rate
         rcount0 = LDC1612_FREQ / (16. * (self.data_rate - 4))
         self.set_reg(REG_RCOUNT0, int(rcount0 + 0.5))
@@ -204,3 +213,9 @@ class LDC1612:
             self.calibration.apply_calibration(samples)
         return {'data': samples, 'errors': self.last_error_count,
                 'overflows': self.ffreader.get_last_overflows()}
+    def _response_i2c_error(self, params):
+        self.i2c_err_flag = params["err_code"]
+        logging.info("report ldc1612 i2c register: cr1_data=%u cr2_data=%u sr1_data=%u sr2_data=%u dr_data=%u err_code=%u", 
+                      params["cr1_data"], params["cr2_data"],
+                      params["sr1_data"], params["sr2_data"],
+                      params["dr_data"],  params["err_code"])
