@@ -6,6 +6,7 @@
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
 #include <string.h> // memcpy
+#include "autoconf.h" // CONFIG_MACH_STM32F1
 #include "basecmd.h" // oid_alloc
 #include "board/irq.h" // irq_disable
 #include "board/misc.h" // timer_read_time
@@ -147,7 +148,8 @@ static void
 read_reg(struct ldc1612 *ld, uint8_t reg, uint8_t *res)
 {
     int ret = i2c_dev_read(ld->i2c, sizeof(reg), &reg, 2, res);
-    i2c_shutdown_on_err(ret);
+    if (!CONFIG_MACH_STM32F1)
+        i2c_shutdown_on_err(ret);
 }
 
 // Read the status register on the ldc1612
