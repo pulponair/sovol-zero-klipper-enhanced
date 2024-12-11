@@ -99,16 +99,13 @@ class EddyCalibration:
         times = []
         for zpos in req_zpos:
             # Move to next position (always descending to reduce backlash)
-            hop_pos = list(start_pos)
-            hop_pos[2] += zpos + 0.500
-            move(hop_pos, move_speed)
             next_pos = list(start_pos)
             next_pos[2] += zpos
             move(next_pos, move_speed)
             # Note sample timing
             start_query_time = toolhead.get_last_move_time() + 0.050
-            end_query_time = start_query_time + 0.100
-            toolhead.dwell(0.200)
+            end_query_time = start_query_time + 0.050
+            toolhead.dwell(0.060)
             # Find Z position based on actual commanded stepper position
             toolhead.flush_step_generation()
             kin_spos = {s.get_name(): s.get_commanded_position()
@@ -168,7 +165,6 @@ class EddyCalibration:
         # Calculate each sample position average and variance
         positions, std, total = self.calc_freqs(cal)
         last_freq = 0.
-        one_before_last_freq = 0.
         flag_pos = 0.
         for pos, freq in reversed(sorted(positions.items())):
             if flag_pos != 0.:
@@ -180,9 +176,6 @@ class EddyCalibration:
                     "Failed calibration - frequency not increasing each step")
             elif freq == last_freq:
                 flag_pos = pos
-
-            if last_freq > 0. and one_before_last_freq >= 0.:
-                one_before_last_freq = last_freq
             last_freq = freq
         gcode = self.printer.lookup_object("gcode")
         gcode.respond_info(
