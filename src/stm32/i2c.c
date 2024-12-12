@@ -71,24 +71,21 @@ i2c_busy_errata(I2C_TypeDef *i2c)
 {
     if(! CONFIG_MACH_STM32F1)
         return ;
+    
     const struct i2c_info *ii = container_of(i2c, struct i2c_info, i2c);
     uint32_t val;
     val = i2c->SR1;
     val = i2c->SR2;
     val = i2c->DR;
-
-    //重置CR1寄存器，禁止PE位
     i2c->CR1 = 0;
     i2c->CR2 = 0;
     i2c->DR = 0;
-    //SDA SCL 通用推挽
+
     gpio_peripheral(ii->scl_pin, GPIO_OUTPUT, 1);
     gpio_peripheral(ii->sda_pin, GPIO_OUTPUT, 1);
     // i2c_us_delay(20);
-    //SDA SCL 通用开漏 输出0
     gpio_peripheral(ii->sda_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, -1);
     gpio_peripheral(ii->scl_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, -1);
-    //SDA SCL 通用开漏 输出1
     gpio_peripheral(ii->scl_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, 1);
     gpio_peripheral(ii->sda_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, 1);
 
