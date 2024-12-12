@@ -110,10 +110,10 @@ class ZoffsetCalibration:
         # Perform Z Hop
         if self.internal_endstop_offset != 0.:
             pos = self.toolhead.get_position()
-            self.toolhead.manual_move([None, None, pos[2] - (2 * self.internal_endstop_offset) + 0.1], self.z_hop_speed)
+            self.toolhead.manual_move([None, None, pos[2] - (2 * self.internal_endstop_offset)], self.z_hop_speed)
             
         pos = self.toolhead.get_position()
-        pos[2] = 0.1
+        pos[2] = 0
         self.toolhead.set_position(pos, homing_axes=(0, 1, 2))
         
         if pprobe_eddy.calibration.is_calibrated() == True and gcmd.get("METHOD", "default") == 'default':
@@ -133,7 +133,7 @@ class ZoffsetCalibration:
         gcmd_ACCEPT = self.gcode.create_gcode_command("cmd_ACCEPT", "cmd_ACCEPT", {'Z': 0.})
         
         manual_probe_helper = pprobe_eddy.calibration.cmd_EDDY_CALIBRATE(gcmd_EDDY)
-        self.toolhead.manual_move([None, None, self.internal_endstop_offset - 0.1], 5)
+        self.toolhead.manual_move([None, None, self.internal_endstop_offset], 5)
         manual_probe_helper.cmd_ACCEPT(gcmd_ACCEPT)
         
     def set_offset(self, offset):
