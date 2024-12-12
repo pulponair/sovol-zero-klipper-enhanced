@@ -83,14 +83,14 @@ i2c_busy_errata(I2C_TypeDef *i2c)
 
     gpio_peripheral(ii->scl_pin, GPIO_OUTPUT, 1);
     gpio_peripheral(ii->sda_pin, GPIO_OUTPUT, 1);
-    // i2c_us_delay(20);
+    i2c_us_delay(20);
     gpio_peripheral(ii->sda_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, -1);
     gpio_peripheral(ii->scl_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, -1);
     gpio_peripheral(ii->scl_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, 1);
     gpio_peripheral(ii->sda_pin, GPIO_OUTPUT | GPIO_OPEN_DRAIN, 1);
 
     i2c->CR1 = I2C_CR1_SWRST;
-    // i2c_us_delay(5);
+    i2c_us_delay(5);
     i2c->CR1 = 0;
     i2c_init(i2c);
 }
@@ -142,9 +142,11 @@ i2c_wait(I2C_TypeDef *i2c, uint32_t set, uint32_t clear, uint32_t timeout)
         if ((i2c_register.SR1 & set) == set && (i2c_register.SR1 & clear) == 0)
             return (int)I2C_BUS_SUCCESS;
         if (i2c_register.SR1 & I2C_SR1_AF) {
-            ret = (1 << I2C_BUS_NACK);
+            ret |= (1 << I2C_BUS_NACK);
             if (i2c_register.SR2 & I2C_SR2_BUSY)
                 ret |= (1 << I2C_BUS_BUSY);
+            if (i2c_register.SR1 & I2C_SR1_BERR)
+                ret |= (1 << I2C_BUS_ERR);
             i2c_busy_errata(i2c);
             i2c_register.DR = i2c->DR;
             i2c_logging_info(&i2c_register, ret);
