@@ -18,6 +18,9 @@
  ****************************************************************/
 
 static void *alloc_end;
+static uint32_t allocate_max = 0;
+static uint32_t move_queue_number = 0;
+static uint32_t move_queue_Water_line = 0;
 
 void
 alloc_init(void)
@@ -50,6 +53,7 @@ alloc_chunks(size_t size, size_t count, uint16_t *avail)
         shutdown("alloc_chunks failed");
     void *data = alloc_chunk(p - alloc_end);
     *avail = can_alloc;
+    allocate_max = can_alloc;
     return data;
 }
 
@@ -78,6 +82,7 @@ move_free(void *m)
     struct move_node *mf = m;
     mf->next = move_free_list;
     move_free_list = mf;
+    move_queue_number--;
 }
 
 // Allocate runtime storage
@@ -89,6 +94,9 @@ move_alloc(void)
     if (!mf)
         shutdown("Move queue overflow");
     move_free_list = mf->next;
+    move_queue_Water_line++;
+    if(move_queue_Water_line < move_queue_number)
+        move_queue_Water_line = move_queue_number;
     irq_restore(flag);
     return mf;
 }
@@ -163,6 +171,7 @@ move_reset(void)
     struct move_node *mf = move_list + (move_count - 1)*move_item_size;
     mf->next = NULL;
     move_free_list = move_list;
+    output("allocate_max=%u move_queue_number=%u",allocate_max, move_queue_number);
 }
 DECL_SHUTDOWN(move_reset);
 
@@ -173,7 +182,7 @@ move_finalize(void)
         shutdown("Already finalized");
     struct move_queue_head dummy;
     move_queue_setup(&dummy, sizeof(*move_free_list));
-    move_list = alloc_chunks(move_item_size, 1024, &move_count);
+    move_list = alloc_chunks(move_item_size, 2048, &move_count);
     move_reset();
 }
 
@@ -245,7 +254,7 @@ void
 command_get_config(uint32_t *args)
 {
     sendf("config is_config=%c crc=%u is_shutdown=%c move_count=%hu"
-          , is_finalized(), config_crc, sched_is_shutdown(), move_count);
+          , is_finalized(), config_crc, sched_is_shutdown(), move_count - 10);
 }
 DECL_COMMAND_FLAGS(command_get_config, HF_IN_SHUTDOWN, "get_config");
 

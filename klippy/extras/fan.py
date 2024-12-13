@@ -46,6 +46,8 @@ class Fan:
         self.printer.register_event_handler("gcode:request_restart",
                                             self._handle_request_restart)
 
+        self.gcode = self.printer.lookup_object('gcode')
+
     def get_mcu(self):
         return self.mcu_fan.get_mcu()
     def _apply_speed(self, print_time, value):
@@ -77,14 +79,13 @@ class Fan:
     def reCheck(self, eventtime):
         tachometer_status = self.tachometer.get_status(eventtime)
         rpm = tachometer_status['rpm']
-        if self.last_fan_value == 1.0 and rpm == 0.0 and (eventtime - self.last_fan_time) > 4.0:
-            if self.last_fan_value == 1.0 and rpm == 0.0:
-                self.printer.invoke_shutdown("Exception in Hotend_fan")
+        if self.last_fan_value == 1.0 and rpm == 0.0:
+            self.gcode._process_commands(['M117 Tip code: 110'])
     def get_status(self, eventtime):
         tachometer_status = self.tachometer.get_status(eventtime)
         rpm = tachometer_status['rpm']
         if self.last_fan_value == 1.0 and rpm == 0.0:
-            if self.flag < 12:
+            if self.flag < 30:
                 self.flag += 1
             else:
                 self.flag = 0

@@ -16,7 +16,6 @@ class ZoffsetCalibration:
         self.zconfig = config.getsection('stepper_z')
         self.endstop_pin = self.zconfig.get('endstop_pin')
         self.speed = config.getfloat('speed', 180.0, above=0.)
-        self.offsetadjust = float(self.read_varibles_cfg_value("offsetadjust"))
         self.internal_endstop_offset = config.getfloat('internal_endstop_offset', default=0.)
         self.gcode = self.printer.lookup_object('gcode')
         self.gcode_move = self.printer.lookup_object('gcode_move')
