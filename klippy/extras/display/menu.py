@@ -955,13 +955,13 @@ class MenuManager:
                     self.changRootMain()
                 if name in ["Cancel printing", "Resume printing"]:
                     self.back()
-                if name in ["Belt test", "Calibrate Zoffset", "Cooldown", "Start printing", "Show IP", "OTA", "Bed Mesh", "Quad Gantry Lvl", "Auto-Calibrate", "Preheat PLA", "Preheat ABS"]:
+                if name in ["Belt test", "Calibrate Zoffset", "Cooldown", "Start printing", "Show IP", "Bed Mesh", "Quad Gantry Lvl", "Auto-Calibrate", "Preheat PLA", "Preheat ABS", "Load Cells Test"]:
                     self.back()
                     self.back()
                     if name == "Calibrate Zoffset":
                         self.printer.send_event("klippy:start_print")
                         self.gcode.run_script("_Delay_Calibrate")
-                if name in ["Load Fil", "Unload Fil", "Tune Hotend PID", "Tune Hotbed PID"]:
+                if name in ["Load Fil", "Unload Fil", "Tune Hotend PID", "Tune Hotbed PID", "Confirm"]:
                     self.back()
                     self.back()
                     self.back()
