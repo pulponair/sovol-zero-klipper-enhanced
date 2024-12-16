@@ -125,9 +125,9 @@ static void
 i2c_logging_info(I2C_TypeDef *i2c, uint32_t ret_code)
 {
     sendf("ldc1612_i2c_report cr1_data=%u cr2_data=%u sr1_data=%u sr2_data=%u dr_data=%u err_code=%u",  
-            (uint32_t)(i2c->CR1), (uint32_t)(i2c->CR2),
-            (uint32_t)(i2c->SR1), (uint32_t)(i2c->SR2),
-            (uint32_t)(i2c->DR),  (uint32_t)(ret_code));
+          (uint32_t)(i2c->CR1), (uint32_t)(i2c->CR2),
+          (uint32_t)(i2c->SR1), (uint32_t)(i2c->SR2),
+          (uint32_t)(i2c->DR),  (uint32_t)(ret_code));
 }
 
 static int
@@ -135,26 +135,20 @@ i2c_wait(I2C_TypeDef *i2c, uint32_t set, uint32_t clear, uint32_t timeout)
 {
     for (;;) {
         int ret = 0;
-        I2C_TypeDef i2c_register = { 
+        I2C_TypeDef i2c_register = {
             .SR1 = i2c->SR1, .SR2 = i2c->SR2, 
             .CR1 = i2c->CR1, .CR2 = i2c->CR2
         };
         
         if ((i2c_register.SR1 & set) == set && (i2c_register.SR1 & clear) == 0)
             return (int)I2C_BUS_SUCCESS;
-        if (i2c_register.SR1 & I2C_SR1_AF) {
+
+        if (i2c_register.SR1 & I2C_SR1_AF)
             ret |= (1 << I2C_BUS_NACK);
-            if (i2c_register.SR2 & I2C_SR2_BUSY)
-                ret |= (1 << I2C_BUS_BUSY);
-            if (i2c_register.SR1 & I2C_SR1_BERR)
-                ret |= (1 << I2C_BUS_ERR);
-            i2c_busy_errata(i2c);
-            i2c_register.DR = i2c->DR;
-            i2c_logging_info(&i2c_register, ret);
-            return ret;
-        }
-        if (!timer_is_before(timer_read_time(), timeout)) {
-            ret = (1 << I2C_BUS_TIMEOUT);
+        if (!timer_is_before(timer_read_time(), timeout))
+            ret |= (1 << I2C_BUS_TIMEOUT);
+
+        if (ret != 0) {
             if (i2c_register.SR2 & I2C_SR2_BUSY)
                 ret |= (1 << I2C_BUS_BUSY);
             if (i2c_register.SR1 & I2C_SR1_BERR)
@@ -177,7 +171,7 @@ i2c_start(I2C_TypeDef *i2c, uint8_t addr, uint8_t xfer_len,
     if (ret != I2C_BUS_SUCCESS) {
         if (ret == I2C_BUS_BUSY) {
             if (i2c_wait(i2c, I2C_SR1_SB, 0, timeout) != I2C_BUS_SUCCESS) {
-                ret = I2C_BUS_START_BUSY;
+                ret = I2C_BUS_BUSY;
                 goto abrt;
             }
         } else 
@@ -190,7 +184,7 @@ i2c_start(I2C_TypeDef *i2c, uint8_t addr, uint8_t xfer_len,
     if (ret != I2C_BUS_SUCCESS) {
         if (ret == I2C_BUS_BUSY) {
             if (i2c_wait(i2c, I2C_SR1_ADDR, 0, timeout) != I2C_BUS_SUCCESS) {
-                ret = I2C_BUS_START_BUSY;
+                ret = I2C_BUS_BUSY;
                 goto abrt;
             }
         } else 

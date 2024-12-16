@@ -31,6 +31,12 @@ REG_DRIVE_CURRENT0 = 0x1e
 REG_MANUFACTURER_ID = 0x7e
 REG_DEVICE_ID = 0x7f
 
+class ErrBitMap:
+    I2C_BUS_NACK = 1
+    I2C_BUS_TIMEOUT = 2
+    I2C_BUS_BUSY = 5
+    I2C_BUS_ERR = 7
+
 # Tool for determining appropriate DRIVE_CURRENT register
 class DriveCurrentCalibrate:
     def __init__(self, config, sensor):
@@ -171,14 +177,20 @@ class LDC1612:
         manuf_id = self.read_reg(REG_MANUFACTURER_ID)
         dev_id = self.read_reg(REG_DEVICE_ID)
         # Loop test to prevent external interference when read only once, read the wrong data
-        while (manuf_id != LDC1612_MANUF_ID or dev_id != LDC1612_DEV_ID) and self.i2c_err_flag != 0:
+        while (manuf_id != LDC1612_MANUF_ID or dev_id != LDC1612_DEV_ID):
             if retry_cnt > 2:
+                if self.i2c_err_flag != 0:
+                    if self.i2c_err_flag & (1 << ErrBitMap.I2C_BUS_BUSY) and self.i2c_err_flag & (1 << ErrBitMap.I2C_BUS_TIMEOUT):
+                        msg = "LDC1612 I2C bus busy or timeout error,please check the connection between the sensor module and the mainboard."
+                    else:
+                        msg = "LDC1612 I2C bus error.There may have been internal or external interference during the communication."
+                else:
+                    msg = "Invalid ldc1612 id (got %x,%x vs %x,%x).\n\
+                           This is generally indicative of connection problems\n\
+                           (e.g. faulty wiring) or a faulty ldc1612 chip."\
+                           % (manuf_id, dev_id, LDC1612_MANUF_ID, LDC1612_DEV_ID)
                 self.i2c_err_flag = 0
-                raise self.printer.command_error(
-                    "Invalid ldc1612 id (got %x,%x vs %x,%x).\n"
-                    "This is generally indicative of connection problems\n"
-                    "(e.g. faulty wiring) or a faulty ldc1612 chip."
-                    % (manuf_id, dev_id, LDC1612_MANUF_ID, LDC1612_DEV_ID))
+                raise self.printer.command_error(msg)
             manuf_id = self.read_reg(REG_MANUFACTURER_ID)
             dev_id = self.read_reg(REG_DEVICE_ID)
             retry_cnt += 1 
