@@ -253,7 +253,6 @@ armcm_main(void)
     gpio_peripheral(GPIO('E', 11), GPIO_OUTPUT, 0);
     gpio_out_setup(GPIO('E', 11), 0);
 
-    lcd_init();
     start_lcd();
     sched_main();
 }
