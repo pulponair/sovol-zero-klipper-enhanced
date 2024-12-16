@@ -88,6 +88,7 @@ class ZoffsetCalibration:
         reprobe_cnt = 1
         while True:
             if(reprobe_cnt >= 6):
+                self.gcode.run_script_from_command('M117 Tip code: 109')
                 raise gcmd.error('ZoffsetCalibration: Pressure probe more than five times.')
             # Perform Z Hop
             if self.z_hop:

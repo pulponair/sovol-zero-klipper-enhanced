@@ -135,6 +135,7 @@ class ExtruderStepper:
 class PrinterExtruder:
     def __init__(self, config, extruder_num):
         self.printer = config.get_printer()
+        self.gcode = self.printer.lookup_object('gcode')
         self.name = config.get_name()
         self.last_position = 0.
         # Setup hotend heater
@@ -204,12 +205,14 @@ class PrinterExtruder:
     def check_move(self, move):
         axis_r = move.axes_r[3]
         if not self.heater.can_extrude:
+            self.gcode.run_script_from_command('M117 Tip code: 106')
             raise self.printer.command_error(
                 "Extrude below minimum temp\n"
                 "See the 'min_extrude_temp' config option for details")
         if (not move.axes_d[0] and not move.axes_d[1]) or axis_r < 0.:
             # Extrude only move (or retraction move) - limit accel and velocity
             if abs(move.axes_d[3]) > self.max_e_dist:
+                self.gcode.run_script_from_command('M117 Tip code: 107')
                 raise self.printer.command_error(
                     "Extrude only move too long (%.3fmm vs %.3fmm)\n"
                     "See the 'max_extrude_only_distance' config"
@@ -224,6 +227,7 @@ class PrinterExtruder:
             area = axis_r * self.filament_area
             logging.debug("Overextrude: %s vs %s (area=%.3f dist=%.3f)",
                           axis_r, self.max_extrude_ratio, area, move.move_d)
+            self.gcode.run_script_from_command('M117 Tip code: 108')
             raise self.printer.command_error(
                 "Move exceeds maximum extrusion (%.3fmm^2 vs %.3fmm^2)\n"
                 "See the 'max_extrude_cross_section' config option for details"

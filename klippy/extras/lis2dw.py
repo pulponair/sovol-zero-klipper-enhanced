@@ -36,6 +36,7 @@ BATCH_UPDATES = 0.100
 class LIS2DW:
     def __init__(self, config):
         self.printer = config.get_printer()
+        self.gcode = self.printer.lookup_object('gcode')
         adxl345.AccelCommandHelper(config, self)
         self.axes_map = adxl345.read_axes_map(config, SCALE, SCALE, SCALE)
         self.data_rate = 1600
@@ -103,6 +104,7 @@ class LIS2DW:
         dev_id = self.read_reg(REG_LIS2DW_WHO_AM_I_ADDR)
         logging.info("lis2dw_dev_id: %x", dev_id)
         if dev_id != LIS2DW_DEV_ID:
+            self.gcode.run_script_from_command('M117 Tip code: 111')
             raise self.printer.command_error(
                 "Invalid lis2dw id (got %x vs %x).\n"
                 "This is generally indicative of connection problems\n"

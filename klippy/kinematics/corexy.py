@@ -8,6 +8,8 @@ import stepper
 
 class CoreXYKinematics:
     def __init__(self, toolhead, config):
+        self.printer = config.get_printer()
+        self.gcode = self.printer.lookup_object('gcode')
         # Setup axis rails
         self.rails = [stepper.LookupMultiRail(config.getsection('stepper_' + n))
                       for n in 'xyz']
@@ -66,12 +68,15 @@ class CoreXYKinematics:
         self.limits = [(1.0, -1.0)] * 3
     def _check_endstops(self, move):
         end_pos = move.end_pos
+        axis_names = ['X', 'Y', 'Z']
         for i in (0, 1, 2):
             if (move.axes_d[i]
                 and (end_pos[i] < self.limits[i][0]
                      or end_pos[i] > self.limits[i][1])):
                 if self.limits[i][0] > self.limits[i][1]:
+                    self.gcode.run_script_from_command(f'M117 Tip code: 104 {axis_names[i]}')
                     raise move.move_error("Must home axis first")
+                self.gcode.run_script_from_command(f'M117 Tip code: 105 {axis_names[i]}')
                 raise move.move_error()
     def check_move(self, move):
         limits = self.limits

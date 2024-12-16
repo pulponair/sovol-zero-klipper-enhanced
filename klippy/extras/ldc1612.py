@@ -82,6 +82,7 @@ class DriveCurrentCalibrate:
 class LDC1612:
     def __init__(self, config, calibration=None):
         self.printer = config.get_printer()
+        self.gcode = self.printer.lookup_object('gcode')
         self.calibration = calibration
         self.dccal = DriveCurrentCalibrate(config, self)
         self.data_rate = 250
@@ -181,10 +182,13 @@ class LDC1612:
             if retry_cnt > 2:
                 if self.i2c_err_flag != 0:
                     if self.i2c_err_flag & (1 << ErrBitMap.I2C_BUS_BUSY) and self.i2c_err_flag & (1 << ErrBitMap.I2C_BUS_TIMEOUT):
+                        self.gcode.run_script_from_command('M117 Tip code: 112')
                         msg = "LDC1612 I2C bus busy or timeout error,please check the connection between the sensor module and the mainboard."
                     else:
+                        self.gcode.run_script_from_command('M117 Tip code: 113')
                         msg = "LDC1612 I2C bus error.There may have been internal or external interference during the communication."
                 else:
+                    self.gcode.run_script_from_command('M117 Tip code: 114')
                     msg = "Invalid ldc1612 id (got %x,%x vs %x,%x).\n\
                            This is generally indicative of connection problems\n\
                            (e.g. faulty wiring) or a faulty ldc1612 chip."\
