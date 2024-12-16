@@ -243,8 +243,8 @@ class PrinterHoming:
     def __init__(self, config):
         self.printer = config.get_printer()
         # Register g-code commands
-        gcode = self.printer.lookup_object('gcode')
-        gcode.register_command('G28', self.cmd_G28)
+        self.gcode = self.printer.lookup_object('gcode')
+        self.gcode.register_command('G28', self.cmd_G28)
     def manual_home(self, toolhead, endstops, pos, speed,
                     triggered, check_triggered):
         hmove = HomingMove(self.printer, endstops, toolhead)

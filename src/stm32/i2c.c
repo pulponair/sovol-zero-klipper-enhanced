@@ -72,8 +72,9 @@ i2c_busy_errata(I2C_TypeDef *i2c)
     if(! CONFIG_MACH_STM32F1)
         return ;
     
-    const struct i2c_info *ii = container_of(i2c, struct i2c_info, i2c);
+    const struct i2c_info *ii = container_of((I2C_TypeDef * const *)i2c, struct i2c_info, i2c);
     uint32_t val;
+    (void)val;
     val = i2c->SR1;
     val = i2c->SR2;
     val = i2c->DR;
