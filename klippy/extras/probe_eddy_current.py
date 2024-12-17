@@ -27,8 +27,8 @@ class EddyCalibration:
         self.probe_speed = 0.
         # Register commands
         cname = self.name.split()[-1]
-        gcode = self.printer.lookup_object('gcode')
-        gcode.register_mux_command("PROBE_EDDY_CURRENT_CALIBRATE", "CHIP",
+        self.gcode = self.printer.lookup_object('gcode')
+        self.gcode.register_mux_command("PROBE_EDDY_CURRENT_CALIBRATE", "CHIP",
                                    cname, self.cmd_EDDY_CALIBRATE,
                                    desc=self.cmd_EDDY_CALIBRATE_help)
     def is_calibrated(self):
@@ -66,6 +66,7 @@ class EddyCalibration:
         rev_freqs = list(reversed(self.cal_freqs))
         pos = bisect.bisect(rev_zpos, height)
         if pos == 0 or pos >= len(rev_zpos):
+            self.gcode.run_script_from_command('M117 Tip code: 115')
             raise self.printer.command_error(
                 "Invalid probe_eddy_current height")
         this_freq = rev_freqs[pos]
@@ -128,6 +129,7 @@ class EddyCalibration:
                 if step < len(times) and query_time >= times[step][0]:
                     cal.setdefault(times[step][2], []).append(freq)
         if len(cal) != len(times):
+            self.gcode.run_script_from_command('M117 Tip code: 116')
             raise self.printer.command_error(
                 "Failed calibration - incomplete sensor data")
         return cal
@@ -172,13 +174,13 @@ class EddyCalibration:
                 flag_pos = 0.
                 
             if freq < last_freq:
+                self.gcode.run_script_from_command('M117 Tip code: 117')
                 raise self.printer.command_error(
                     "Failed calibration - frequency not increasing each step")
             elif freq == last_freq:
                 flag_pos = pos
             last_freq = freq
-        gcode = self.printer.lookup_object("gcode")
-        gcode.respond_info(
+        self.gcode.respond_info(
             "probe_eddy_current: stddev=%.3f in %d queries\n"
             "The SAVE_CONFIG command will update the printer config file\n"
             "and restart the printer." % (std, total))
@@ -217,8 +219,10 @@ class EddyGatherSamples:
         self._probe_times = []
         self._probe_results = []
         self._need_stop = False
+        self.gcode = self._printer.lookup_object("gcode")
         # Start samples
         if not self._calibration.is_calibrated():
+            self.gcode.run_script_from_command('M117 Tip code: 118')
             raise self._printer.command_error(
                 "Must calibrate probe_eddy_current first")
         sensor_helper.add_client(self._add_measurement)
@@ -240,6 +244,7 @@ class EddyGatherSamples:
             systime = reactor.monotonic()
             est_print_time = mcu.estimated_print_time(systime)
             if est_print_time > end_time + 1.0:
+                self.gcode.run_script_from_command('M117 Tip code: 119')
                 raise self._printer.command_error(
                     "probe_eddy_current sensor outage")
             reactor.pause(systime + 0.010)
@@ -291,9 +296,11 @@ class EddyGatherSamples:
         results = []
         for sensor_z, toolhead_pos in self._probe_results:
             if sensor_z is None:
+                self.gcode.run_script_from_command('M117 Tip code: 120')
                 raise self._printer.command_error(
                     "Unable to obtain probe_eddy_current sensor readings")
             if sensor_z <= -OUT_OF_RANGE or sensor_z >= OUT_OF_RANGE:
+                self.gcode.run_script_from_command('M117 Tip code: 121')
                 raise self._printer.command_error(
                     "probe_eddy_current sensor not in valid range")
             # Callers expect position relative to z_offset, so recalculate
@@ -321,6 +328,7 @@ class EddyEndstopWrapper:
         self._dispatch = mcu.TriggerDispatch(self._mcu)
         self._trigger_time = 0.
         self._gather = None
+        self.gcode = self._printer.lookup_object("gcode")
     # Interface for MCU_endstop
     def get_mcu(self):
         return self._mcu
@@ -343,8 +351,10 @@ class EddyEndstopWrapper:
         res = self._dispatch.stop()
         if res >= mcu.MCU_trsync.REASON_COMMS_TIMEOUT:
             if res == mcu.MCU_trsync.REASON_COMMS_TIMEOUT:
+                self.gcode.run_script_from_command('M117 Tip code: 122')
                 raise self._printer.command_error(
                     "Communication timeout during homing")
+            self.gcode.run_script_from_command('M117 Tip code: 123')
             raise self._printer.command_error("Eddy current sensor error")
         if res != mcu.MCU_trsync.REASON_ENDSTOP_HIT:
             return 0.
