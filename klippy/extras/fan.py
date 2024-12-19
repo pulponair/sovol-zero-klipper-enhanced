@@ -81,6 +81,7 @@ class Fan:
         rpm = tachometer_status['rpm']
         if self.last_fan_value == 1.0 and rpm == 0.0:
             self.gcode.run_script_from_command('M117 Tip code: 110')
+            self.gcode.respond_info("Exception in Hotend_fan")
     def get_status(self, eventtime):
         tachometer_status = self.tachometer.get_status(eventtime)
         rpm = tachometer_status['rpm']
