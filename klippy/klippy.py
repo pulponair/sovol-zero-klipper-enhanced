@@ -205,11 +205,14 @@ class Printer:
         if self.in_shutdown_state:
             return
         logging.error("Transition to shutdown state: %s", msg)
-
-        for index, theMsg in enumerate(["Lost communication with MCU", "Exception in Fan", "ADC out of range"]):
-            if theMsg in msg:
-                self.shutCode = 60 + index
         
+        mcu_msg = details.get('reason', '')
+        logging.info("invoke_shutdown mcu_msg: %s, msg: %s", mcu_msg, msg)
+        
+        for index, theMsg in enumerate(["Lost communication with MCU", "Exception in Fan", "ADC out of range"]):
+            if theMsg in msg or theMsg in mcu_msg:
+                self.shutCode = 60 + index
+         
         self.in_shutdown_state = True
         self._set_state(msg)
         for cb in self.event_handlers.get("klippy:shutdown", []):
