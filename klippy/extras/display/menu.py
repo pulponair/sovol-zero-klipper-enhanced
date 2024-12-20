@@ -732,7 +732,12 @@ class MenuManager:
         self.root = self.lookup_menuitem(self._root)
         # send init event
         self.send_event('init', self)
-
+        self.gcode.register_command('CHANG_ROOT_MAIN', self.cmd_CHANG_ROOT_MAIN,
+                                    desc="Chang Root Main")
+                                    
+    def cmd_CHANG_ROOT_MAIN(self, gcmd):
+        self.changRootMain()
+        
     def handle_ready(self):
         # start timer
         plr_bool = self.read_varibles_cfg_value('was_interrupted')
