@@ -969,7 +969,7 @@ class MenuManager:
                     if name == "Calibrate Zoffset":
                         self.printer.send_event("klippy:start_print")
                         self.gcode.run_script("_Delay_Calibrate")
-                if name in ["Load Fil", "Unload Fil", "Tune Hotend PID", "Tune Hotbed PID", "Confirm"]:
+                if name in ["Load Fil", "Unload Fil", "Tune Hotend PID", "Tune Hotbed PID", "Confirm", "Install Obico"]:
                     self.back()
                     self.back()
                     self.back()
