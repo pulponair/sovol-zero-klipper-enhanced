@@ -19,12 +19,14 @@
 #define LIS_FIFO_SAMPLES 0x2F
 
 #define BYTES_PER_SAMPLE 6
+#define BYTES_PER_BLOCK 48
 
 struct lis2dw {
     struct timer timer;
     uint32_t rest_ticks;
     struct spidev_s *spi;
     uint8_t flags;
+    uint8_t fifo_bytes_pending;
     struct sensor_bulk sb;
 };
 
@@ -64,40 +66,68 @@ lis2dw_reschedule_timer(struct lis2dw *ax)
     irq_enable();
 }
 
+
+static void
+update_fifo_status(struct lis2dw *ax, uint8_t fifo_status)
+{
+    if (fifo_status & 0x40)
+        ax->sb.possible_overflows++;
+
+    uint_fast8_t pending;
+    pending = fifo_status & 0x3F;
+
+    ax->fifo_bytes_pending = pending * BYTES_PER_SAMPLE;
+}
+
+
+
+static void
+query_fifo_status(struct lis2dw *ax)
+{
+    uint8_t fifo_status = 0;
+    uint8_t fifo[2] = { LIS_FIFO_SAMPLES | LIS_AM_READ, 0x00 };
+    spidev_transfer(ax->spi, 1, sizeof(fifo), fifo);
+    fifo_status = fifo[1];
+    update_fifo_status(ax, fifo_status);
+}
+
+
+// Read 8 samples from FIFO via SPI
+static void
+read_fifo_block_spi(struct lis2dw *ax)
+{
+    uint8_t msg[BYTES_PER_BLOCK + 1] = {0};
+    msg[0] = LIS_AR_DATAX0 | LIS_AM_READ;
+
+    spidev_transfer(ax->spi, 1, sizeof(msg), msg);
+    memcpy(ax->sb.data, &msg[1], BYTES_PER_BLOCK);
+}
+
+
+static void
+read_fifo_block(struct lis2dw *ax, uint8_t oid)
+{
+    read_fifo_block_spi(ax);
+    ax->sb.data_count = BYTES_PER_BLOCK;
+    sensor_bulk_report(&ax->sb, oid);
+    ax->fifo_bytes_pending -= BYTES_PER_BLOCK;
+}
+
+
+
+
 // Query accelerometer data
 static void
 lis2dw_query(struct lis2dw *ax, uint8_t oid)
 {
-    uint8_t msg[7] = {0};
-    uint8_t fifo[2] = {LIS_FIFO_SAMPLES| LIS_AM_READ , 0};
-    uint8_t fifo_empty,fifo_ovrn = 0;
+    if (ax->fifo_bytes_pending < BYTES_PER_BLOCK)
+        query_fifo_status(ax);
 
-    msg[0] = LIS_AR_DATAX0 | LIS_AM_READ ;
-    uint8_t *d = &ax->sb.data[ax->sb.data_count];
-
-    spidev_transfer(ax->spi, 1, sizeof(msg), msg);
-
-    spidev_transfer(ax->spi, 1, sizeof(fifo), fifo);
-    fifo_empty = fifo[1]&0x3F;
-    fifo_ovrn = fifo[1]&0x40;
-
-    d[0] = msg[1]; // x low bits
-    d[1] = msg[2]; // x high bits
-    d[2] = msg[3]; // y low bits
-    d[3] = msg[4]; // y high bits
-    d[4] = msg[5]; // z low bits
-    d[5] = msg[6]; // z high bits
-
-    ax->sb.data_count += BYTES_PER_SAMPLE;
-    if (ax->sb.data_count + BYTES_PER_SAMPLE > ARRAY_SIZE(ax->sb.data))
-        sensor_bulk_report(&ax->sb, oid);
-
-    // Check fifo status
-    if (fifo_ovrn)
-        ax->sb.possible_overflows++;
+    if (ax->fifo_bytes_pending >= BYTES_PER_BLOCK)
+        read_fifo_block(ax, oid);
 
     // check if we need to run the task again (more packets in fifo?)
-    if (!fifo_empty) {
+    if (ax->fifo_bytes_pending >= BYTES_PER_BLOCK) {
         // More data in fifo - wake this task again
         sched_wake_task(&lis2dw_wake);
     } else {
@@ -120,6 +150,7 @@ command_query_lis2dw(uint32_t *args)
 
     // Start new measurements query
     ax->rest_ticks = args[1];
+    ax->fifo_bytes_pending = 0;
     sensor_bulk_reset(&ax->sb);
     lis2dw_reschedule_timer(ax);
 }
@@ -129,12 +160,20 @@ void
 command_query_lis2dw_status(uint32_t *args)
 {
     struct lis2dw *ax = oid_lookup(args[0], command_config_lis2dw);
-    uint8_t msg[2] = { LIS_FIFO_SAMPLES | LIS_AM_READ, 0x00 };
-    uint32_t time1 = timer_read_time();
-    spidev_transfer(ax->spi, 1, sizeof(msg), msg);
-    uint32_t time2 = timer_read_time();
+    uint32_t time1 = 0;
+    uint32_t time2 = 0;
+    uint8_t fifo_status = 0;
+
+    uint8_t fifo[2] = { LIS_FIFO_SAMPLES | LIS_AM_READ, 0x00 };
+    time1 = timer_read_time();
+    spidev_transfer(ax->spi, 1, sizeof(fifo), fifo);
+    time2 = timer_read_time();
+    fifo_status = fifo[1];
+
+    update_fifo_status(ax, fifo_status);
+
     sensor_bulk_status(&ax->sb, args[0], time1, time2-time1
-                       , (msg[1] & 0x1f) * BYTES_PER_SAMPLE);
+                       , ax->fifo_bytes_pending);
 }
 DECL_COMMAND(command_query_lis2dw_status, "query_lis2dw_status oid=%c");
 
