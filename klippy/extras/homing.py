@@ -115,7 +115,7 @@ class HomingMove:
             if trigger_time > 0.:
                 trigger_times[name] = trigger_time
             elif check_triggered and error is None:
-                self.gcode.run_script_from_command('M117 Tip code: 101')
+                self.gcode.run_script_from_command(f'M117 Tip code: 101 {name}')
                 error = "No trigger on %s after full movement" % (name,)
         # Determine stepper halt positions
         self.toolhead.flush_step_generation()
@@ -217,7 +217,7 @@ class Homing:
             hmove = HomingMove(self.printer, endstops)
             hmove.homing_move(homepos, hi.second_homing_speed)
             if hmove.check_no_movement() is not None:
-                self.gcode.run_script_from_command('M117 Tip code: 103')
+                self.gcode.run_script_from_command(f'M117 Tip code: 103 {hmove.check_no_movement()}')
                 raise self.printer.command_error(
                     "Endstop %s still triggered after retract"
                     % (hmove.check_no_movement(),))
@@ -256,11 +256,11 @@ class PrinterHoming:
                 raise self.printer.command_error(
                     "Homing failed due to printer shutdown")
             raise
-    def probing_move(self, mcu_probe, pos, speed):
-        endstops = [(mcu_probe, "probe")]
+    def probing_move(self, mcu_probe, pos, speed, non_contact_probe=True):
+        endstops = [(mcu_probe, 'probe')]
         hmove = HomingMove(self.printer, endstops)
         try:
-            epos = hmove.homing_move(pos, speed, probe_pos=True)
+            epos = hmove.homing_move(pos, speed, probe_pos=True, triggered=non_contact_probe)
         except self.printer.command_error:
             if self.printer.is_shutdown():
                 raise self.printer.command_error(
